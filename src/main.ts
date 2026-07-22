@@ -37,8 +37,8 @@ async function bootstrap() {
     }),
   );
 
-  // Use Global Prefix for versioning
-  app.setGlobalPrefix('api/v1');
+  // Use Global Prefix for versioning (exclude root path for health check)
+  app.setGlobalPrefix('api/v1', { exclude: ['/'] });
 
   const port = process.env.PORT || 4000;
   await app.listen(port);
