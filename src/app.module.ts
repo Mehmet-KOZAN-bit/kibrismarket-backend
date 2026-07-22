@@ -6,6 +6,8 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { ProductsModule } from './modules/products/products.module';
 import { RateLimiterMiddleware } from './common/middleware/rate-limiter.middleware';
 
+import { AppController } from './app.controller';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -16,6 +18,7 @@ import { RateLimiterMiddleware } from './common/middleware/rate-limiter.middlewa
     NotificationsModule,
     ProductsModule,
   ],
+  controllers: [AppController],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
