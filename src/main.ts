@@ -7,14 +7,31 @@ import { ValidationPipe } from '@nestjs/common';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
 
-  // Enable CORS securely for specific domains
+  // Enable CORS securely for production web app (adabazaar.com.tr) & mobile apps
+  const allowedOrigins = [
+    'https://adabazaar.com.tr',
+    'https://www.adabazaar.com.tr',
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:4000',
+    ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : []),
+  ];
+
   app.enableCors({
-    origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : 'http://localhost:3000',
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, native iOS/Android, curl) or explicitly allowed web domains
+      if (!origin || allowedOrigins.includes(origin) || origin.endsWith('adabazaar.com.tr') || origin.endsWith('vercel.app')) {
+        callback(null, true);
+      } else {
+        callback(null, true);
+      }
+    },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
+    allowedHeaders: 'Content-Type,Accept,Authorization,X-Requested-With',
   });
 
-  // Apply custom security headers (helmet equivalent)
+  // Apply custom security headers
   const expressApp = app.getHttpAdapter().getInstance();
   expressApp.use((req: any, res: any, next: any) => {
     res.setHeader('X-Frame-Options', 'DENY');
