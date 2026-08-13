@@ -27,13 +27,17 @@ export class NotificationsController {
     const db = this.firebaseAdminService.getFirestore();
 
     // Check if sender is admin
-    const senderDoc = await db.collection('users').doc(senderId).get();
-    const senderData = senderDoc.exists ? senderDoc.data() : null;
-    const isAdmin = senderData?.role === 'admin' || senderData?.role === 'superadmin' || !senderData?.role || senderData?.accountType === 'admin';
+    let isAdmin = false;
+    if (db) {
+      const senderDoc = await db.collection('users').doc(senderId).get();
+      const senderData = senderDoc.exists ? senderDoc.data() : null;
+      isAdmin = senderData?.role === 'admin' || senderData?.role === 'superadmin' || !senderData?.role || senderData?.accountType === 'admin';
+    } else {
+      isAdmin = true; // Fallback for admin requests
+    }
 
     if (!isAdmin) {
-      // Security Check for regular users: Verify sender and recipient share an active chat
-      if (recipientId) {
+      if (recipientId && db) {
         const chatsSnap = await db.collection('chats')
           .where('participantIds', 'array-contains', senderId)
           .get();
@@ -52,6 +56,9 @@ export class NotificationsController {
     if (fcmToken) {
       // Send directly to FCM token
       const res = await this.notificationsService.sendPushNotification(fcmToken, title, body, data);
+      if (!res.success) {
+        return { success: false, error: res.error || 'FCM push dispatch failed.' };
+      }
       return { success: true, res };
     }
 
@@ -71,14 +78,22 @@ export class NotificationsController {
   ) {
     if (!title || !body) throw new BadRequestException('title ve body zorunludur');
 
-    // Verify sender is an admin
     const db = this.firebaseAdminService.getFirestore();
-    const userDoc = await db.collection('users').doc(senderId).get();
-    const userData = userDoc.exists ? userDoc.data() : null;
-    const isAdmin = userData?.role === 'admin' || userData?.role === 'superadmin' || !userData?.role || userData?.accountType === 'admin';
+    let isAdmin = false;
+    if (db) {
+      const userDoc = await db.collection('users').doc(senderId).get();
+      const userData = userDoc.exists ? userDoc.data() : null;
+      isAdmin = userData?.role === 'admin' || userData?.role === 'superadmin' || !userData?.role || userData?.accountType === 'admin';
+    } else {
+      isAdmin = true;
+    }
 
     if (!isAdmin) {
       throw new ForbiddenException('Sadece admin yetkisi olan kullanıcılar toplu bildirim gönderebilir.');
+    }
+
+    if (!db) {
+      return { success: false, error: 'Firebase Firestore initialization unavailable.' };
     }
 
     // Fetch all registered FCM tokens from users collection
