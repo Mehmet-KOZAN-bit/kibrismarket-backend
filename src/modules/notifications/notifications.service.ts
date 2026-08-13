@@ -20,7 +20,7 @@ export class NotificationsService {
       return { success: true, response };
     } catch (error) {
       console.error('FCM Notification error:', error);
-      throw new InternalServerErrorException('Failed to dispatch push notification.');
+      return { success: false, error: (error as any).message };
     }
   }
 
@@ -35,14 +35,28 @@ export class NotificationsService {
     if (!userDoc.exists) return;
 
     const userData = userDoc.data();
-    const fcmToken = userData?.fcmToken; // Or retrieve list of tokens if multi-device
+    const tokensSet = new Set<string>();
 
-    if (!fcmToken) {
-      console.log(`Skipping notification: User ${userId} has no registered FCM token.`);
+    if (userData?.fcmToken && typeof userData.fcmToken === 'string') {
+      tokensSet.add(userData.fcmToken);
+    }
+    if (Array.isArray(userData?.fcmTokens)) {
+      userData.fcmTokens.forEach((t: string) => { if (typeof t === 'string') tokensSet.add(t); });
+    }
+    if (userData?.pushToken && typeof userData.pushToken === 'string') {
+      tokensSet.add(userData.pushToken);
+    }
+
+    const tokens = Array.from(tokensSet);
+
+    if (tokens.length === 0) {
+      console.log(`Skipping notification: User ${userId} has no registered FCM token in Firestore.`);
       return;
     }
 
-    // 2. Dispatch FCM message
-    await this.sendPushNotification(fcmToken, title, body, data);
+    // 2. Dispatch FCM message to all active tokens of the user
+    for (const token of tokens) {
+      await this.sendPushNotification(token, title, body, data);
+    }
   }
 }
