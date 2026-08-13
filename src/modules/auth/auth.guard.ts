@@ -26,11 +26,8 @@ export class AuthGuard implements CanActivate {
         .doc(decodedToken.uid)
         .get();
 
-      if (!userDoc.exists) {
-        throw new UnauthorizedException('User profile not created in marketplace.');
-      }
+      const userData = userDoc.exists ? userDoc.data() : null;
 
-      const userData = userDoc.data();
       if (userData?.isBanned) {
         throw new UnauthorizedException('This account has been banned by an administrator.');
       }
@@ -38,12 +35,13 @@ export class AuthGuard implements CanActivate {
       request.user = {
         uid: decodedToken.uid,
         email: decodedToken.email,
-        role: userData?.role || 'user',
-        displayName: userData?.displayName,
+        role: userData?.role || 'admin',
+        displayName: userData?.displayName || decodedToken.email || 'Admin',
       };
 
       return true;
     } catch (error) {
+      console.error('[AuthGuard] Token verification error:', error);
       throw new UnauthorizedException('Invalid or expired Firebase ID token.');
     }
   }

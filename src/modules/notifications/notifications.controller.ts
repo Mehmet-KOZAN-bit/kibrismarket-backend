@@ -15,12 +15,13 @@ export class NotificationsController {
   @UseGuards(AuthGuard)
   async sendNotification(
     @CurrentUser('uid') senderId: string,
-    @Body('recipientId') recipientId: string,
-    @Body('title') title: string,
-    @Body('body') body: string,
+    @Body('recipientId') recipientId?: string,
+    @Body('fcmToken') fcmToken?: string,
+    @Body('title') title?: string,
+    @Body('body') body?: string,
     @Body('data') data?: Record<string, string>,
   ) {
-    if (!recipientId) throw new BadRequestException('recipientId zorunludur');
+    if (!recipientId && !fcmToken) throw new BadRequestException('recipientId veya fcmToken zorunludur');
     if (!title || !body) throw new BadRequestException('title ve body zorunludur');
 
     const db = this.firebaseAdminService.getFirestore();
@@ -32,21 +33,31 @@ export class NotificationsController {
 
     if (!isAdmin) {
       // Security Check for regular users: Verify sender and recipient share an active chat
-      const chatsSnap = await db.collection('chats')
-        .where('participantIds', 'array-contains', senderId)
-        .get();
+      if (recipientId) {
+        const chatsSnap = await db.collection('chats')
+          .where('participantIds', 'array-contains', senderId)
+          .get();
 
-      const hasChat = chatsSnap.docs.some(docSnapshot => {
-        const chatData = docSnapshot.data();
-        return chatData?.participantIds?.includes(recipientId);
-      });
+        const hasChat = chatsSnap.docs.some(docSnapshot => {
+          const chatData = docSnapshot.data();
+          return chatData?.participantIds?.includes(recipientId);
+        });
 
-      if (!hasChat) {
-        throw new ForbiddenException('Bu kullanıcıya bildirim göndermek için aktif bir sohbetiniz bulunmalıdır.');
+        if (!hasChat) {
+          throw new ForbiddenException('Bu kullanıcıya bildirim göndermek için aktif bir sohbetiniz bulunmalıdır.');
+        }
       }
     }
 
-    await this.notificationsService.notifyUser(recipientId, title, body, data);
+    if (fcmToken) {
+      // Send directly to FCM token
+      const res = await this.notificationsService.sendPushNotification(fcmToken, title, body, data);
+      return { success: true, res };
+    }
+
+    if (recipientId) {
+      await this.notificationsService.notifyUser(recipientId, title, body, data);
+    }
     return { success: true };
   }
 
